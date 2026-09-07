@@ -1,0 +1,42 @@
+services:
+  mariadb:
+    image: docker.io/library/mariadb:10.11
+    restart: unless-stopped
+    environment:
+      MARIADB_ROOT_PASSWORD: ${MARIADB_ROOT_PASSWORD:?Set MARIADB_ROOT_PASSWORD in .env}
+      MARIADB_DATABASE: ${GLPI_DB_NAME:-glpidb}
+      MARIADB_USER: ${GLPI_DB_USER:-glpi_user}
+      MARIADB_PASSWORD: ${GLPI_DB_PASSWORD:?Set GLPI_DB_PASSWORD in .env}
+    volumes:
+      - mariadb_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  app:
+    image: docker.io/diouxx/glpi:${GLPI_VERSION:-latest}
+    restart: unless-stopped
+    depends_on:
+      mariadb:
+        condition: service_healthy
+    environment:
+      TIMEZONE: ${TIMEZONE:-America/New_York}
+      # This image resolves its DB host via the "mariadb" hostname, not an
+      # env var — the depends_on service above MUST stay named "mariadb".
+    ports:
+      - "${GLPI_HTTP_PORT:-8080}:80"
+    volumes:
+      - glpi_data:/var/www/html/glpi
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/status.php"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+volumes:
+  mariadb_data:
+  glpi_data:
